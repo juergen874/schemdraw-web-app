@@ -187,9 +187,7 @@ namespace = {"schemdraw": schemdraw, "elm": elm}
 # Execute the user code
 exec(user_code, namespace)
 
-# Find the drawing object. 
-# It's either the one the user explicitly created (usually 'd')
-# or we look for any schemdraw.Drawing instance in the namespace.
+# Find the drawing object
 drawing = namespace.get('d')
 if not isinstance(drawing, schemdraw.Drawing):
     for val in namespace.values():
@@ -197,18 +195,21 @@ if not isinstance(drawing, schemdraw.Drawing):
             drawing = val
             break
 
-if drawing:
-    # Ensure the drawing is "drawn" if it was used in a context manager
-    # get_imagedata('svg') handles this usually.
-    svg_output = drawing.get_imagedata('svg').decode('utf-8')
-    svg_output
-else:
-    raise Exception("No schemdraw.Drawing object found. Please make sure to create one (e.g., 'd = schemdraw.Drawing()') or use 'with schemdraw.Drawing() as d:'.")
+if not drawing:
+    raise Exception("No schemdraw.Drawing object found. Please define 'd = schemdraw.Drawing()'.")
+
+# The last expression is what Pyodide returns
+drawing.get_imagedata('svg').decode('utf-8')
 `;
                 const svg = await pyodide.runPythonAsync(wrapper);
-                previewEl.innerHTML = svg;
-                statusEl.innerText = "Rendered successfully.";
-                pdfBtn.disabled = false;
+                
+                if (svg) {
+                    previewEl.innerHTML = svg;
+                    statusEl.innerText = "Rendered successfully.";
+                    pdfBtn.disabled = false;
+                } else {
+                    throw new Error("Rendering returned no data.");
+                }
             } catch (err) {
                 statusEl.innerText = "Error: " + err.message;
                 previewEl.innerHTML = `<pre style="color: red; white-space: pre-wrap;">${err.message}</pre>`;
