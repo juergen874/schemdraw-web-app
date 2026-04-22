@@ -214,22 +214,10 @@ import schemdraw
 import schemdraw.elements as elm
 from schemdraw import logic
 import matplotlib
-matplotlib.use('Agg')
-
-# Ensure Breadboard is available
-try:
-    from schemdraw.logic import Breadboard
-except ImportError:
-    Breadboard = None
+matplotlib.use('Agg') # Headless backend for browser
 
 # Create a clean namespace for execution
-namespace = {
-    "schemdraw": schemdraw, 
-    "elm": elm, 
-    "logic": logic, 
-    "Breadboard": Breadboard,
-    "d": None # Placeholder for the drawing
-}
+namespace = {"schemdraw": schemdraw, "elm": elm, "logic": logic}
 
 # Execute the user code
 exec(user_code, namespace)

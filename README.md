@@ -11,11 +11,10 @@ A simple web-based editor for [schemdraw](https://schemdraw.readthedocs.io/en/la
 
 ## How to use
 
-1. Wait for the environment to load (it will install `schemdraw` and `matplotlib`).
-2. Enter your Python code.
-3. The objects `d`, `elm`, `logic`, and `Breadboard` are already available.
-4. Click **Render Diagram**.
-5. Click **Export PDF** to print or save the diagram as a PDF.
+1. Wait for the environment to load (it will install `schemdraw` in the background).
+2. Enter your Python code in the editor. Use the `d` object which is pre-initialized as a `schemdraw.Drawing()` instance.
+3. Click **Render Diagram**.
+4. Click **Export PDF** to print or save the diagram as a PDF.
 
 ## Example Code
 
