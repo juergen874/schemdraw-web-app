@@ -180,38 +180,15 @@ d += elm.SourceV().up().label('12V')
         async function initPyodide() {
             try {
                 pyodide = await loadPyodide();
-                statusEl.innerText = "Installing packages (schemdraw, matplotlib)...";
+                statusEl.innerText = "Installing schemdraw...";
                 await pyodide.loadPackage("micropip");
                 const micropip = pyodide.pyimport("micropip");
-                await micropip.install(["schemdraw", "matplotlib"]);
-                
-                // Setup Virtual Filesystem and PyScript Shim
-                await pyodide.runPythonAsync(`
-import os
-import sys
-import types
-
-# Create virtual directory for /sdcard/DCIM/
-try:
-    os.makedirs('/sdcard/DCIM/', exist_ok=True)
-except:
-    pass
-
-# Create a shim for 'pyscript' module
-ps = types.ModuleType('pyscript')
-def display(obj, target=None, append=False):
-    # This will be intercepted by the JS side
-    global last_displayed_object
-    last_displayed_object = obj
-
-ps.display = display
-sys.modules['pyscript'] = ps
-`);
+                await micropip.install("schemdraw");
                 
                 statusEl.innerText = "Ready!";
                 renderBtn.disabled = false;
             } catch (err) {
-                statusEl.innerText = "Error loading environment: " + err.message;
+                statusEl.innerText = "Error loading Pyodide: " + err.message;
                 console.error(err);
             }
         }
@@ -222,59 +199,42 @@ sys.modules['pyscript'] = ps
             renderBtn.disabled = true;
 
             try {
+                // Pass the code as a string to avoid escaping issues
                 pyodide.globals.set("user_code", code);
                 
                 const wrapper = `
 import schemdraw
 import schemdraw.elements as elm
-from schemdraw import logic
-import matplotlib
-matplotlib.use('Agg') # Required for headless browser environment
-import matplotlib.pyplot as plt
-
-# Reset the tracking variable
-global last_displayed_object
-last_displayed_object = None
+import io
 
 # Create a clean namespace for execution
-namespace = {
-    "schemdraw": schemdraw, 
-    "elm": elm, 
-    "logic": logic, 
-    "plt": plt,
-    "matplotlib": matplotlib
-}
+namespace = {"schemdraw": schemdraw, "elm": elm}
 
 # Execute the user code
 exec(user_code, namespace)
 
 # Find the drawing object
-drawing = namespace.get('last_displayed_object')
-if not isinstance(drawing, schemdraw.Drawing):
-    # Try looking for 'd' in the namespace
-    drawing = namespace.get('d')
-
+drawing = namespace.get('d')
 if not isinstance(drawing, schemdraw.Drawing):
     for val in namespace.values():
         if isinstance(val, schemdraw.Drawing):
             drawing = val
             break
 
-if drawing:
-    res = drawing.get_imagedata('svg').decode('utf-8')
-    res
-else:
-    "No drawing found. Use 'd = schemdraw.Drawing()' or 'display(d)'"
+if not drawing:
+    raise Exception("No schemdraw.Drawing object found. Please define 'd = schemdraw.Drawing()'.")
+
+# The last expression is what Pyodide returns
+drawing.get_imagedata('svg').decode('utf-8')
 `;
-                const result = await pyodide.runPythonAsync(wrapper);
+                const svg = await pyodide.runPythonAsync(wrapper);
                 
-                if (result && result.startsWith('<svg')) {
-                    previewEl.innerHTML = result;
+                if (svg) {
+                    previewEl.innerHTML = svg;
                     statusEl.innerText = "Rendered successfully.";
                     pdfBtn.disabled = false;
                 } else {
-                    previewEl.innerHTML = `<pre>${result}</pre>`;
-                    statusEl.innerText = "Notice: Execution finished but no SVG returned.";
+                    throw new Error("Rendering returned no data.");
                 }
             } catch (err) {
                 statusEl.innerText = "Error: " + err.message;
