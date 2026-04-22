@@ -212,21 +212,15 @@ f"schemdraw {schemdraw.__version__}, matplotlib {matplotlib.__version__}"
                 const wrapper = `
 import schemdraw
 import schemdraw.elements as elm
-import schemdraw.logic as logic
+from schemdraw import logic
 import matplotlib
 matplotlib.use('Agg')
 
-# Find Breadboard class
-Breadboard = getattr(logic, 'Breadboard', None)
-if Breadboard is None:
-    try:
-        from schemdraw.logic import Breadboard
-    except ImportError:
-        pass
-
-# Ensure it's attached to the logic module object for the user
-if Breadboard:
-    logic.Breadboard = Breadboard
+# Ensure Breadboard is available
+try:
+    from schemdraw.logic import Breadboard
+except ImportError:
+    Breadboard = None
 
 # Create a clean namespace for execution
 namespace = {
@@ -234,7 +228,7 @@ namespace = {
     "elm": elm, 
     "logic": logic, 
     "Breadboard": Breadboard,
-    "d": None
+    "d": None # Placeholder for the drawing
 }
 
 # Execute the user code
