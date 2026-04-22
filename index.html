@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SchemDraw Web Runner</title>
+    <!-- CodeMirror for code editor -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+    <!-- Pyodide for running Python in browser -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        header {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        main {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .editor-container, .preview-container {
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .container-header {
+            padding: 10px;
+            background: #eee;
+            border-bottom: 1px solid #ccc;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .CodeMirror {
+            height: 100%;
+            font-size: 14px;
+        }
+        #preview {
+            flex-grow: 1;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            background-color: #fff;
+        }
+        #preview svg {
+            max-width: 100%;
+            height: auto;
+        }
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #status {
+            font-size: 0.9em;
+            color: #666;
+        }
+        @media print {
+            body * { visibility: hidden; }
+            #preview, #preview * { visibility: visible; }
+            #preview {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                padding: 0;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>SchemDraw Web</h1>
+            <div id="status">Loading Pyodide...</div>
+        </div>
+        <div>
+            <button id="renderBtn" disabled>Render Diagram</button>
+            <button id="pdfBtn" disabled>Export PDF</button>
+        </div>
+    </header>
+    <main>
+        <div class="editor-container">
+            <div class="container-header">Python Code</div>
+            <textarea id="code">import schemdraw
+import schemdraw.elements as elm
+
+with schemdraw.Drawing() as d:
+    d += elm.Resistor().label('R1')
+    d += elm.Capacitor().label('C1')
+    d += elm.Diode().label('D1')
+    # The SVG string will be captured below
+</textarea>
+        </div>
+        <div class="preview-container">
+            <div class="container-header">Preview</div>
+            <div id="preview">
+                <p>Click "Render Diagram" to generate SVG.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let pyodide;
+        const statusEl = document.getElementById('status');
+        const renderBtn = document.getElementById('renderBtn');
+        const pdfBtn = document.getElementById('pdfBtn');
+        const previewEl = document.getElementById('preview');
+
+        // Initialize CodeMirror
+        const editor = CodeMirror.fromTextArea(document.getElementById('code'), {
+            mode: 'python',
+            theme: 'monokai',
+            lineNumbers: true,
+            indentUnit: 4,
+        });
+
+        async function initPyodide() {
+            try {
+                pyodide = await loadPyodide();
+                statusEl.innerText = "Installing schemdraw...";
+                await pyodide.loadPackage("micropip");
+                const micropip = pyodide.pyimport("micropip");
+                await micropip.install("schemdraw");
+                
+                statusEl.innerText = "Ready!";
+                renderBtn.disabled = false;
+            } catch (err) {
+                statusEl.innerText = "Error loading Pyodide: " + err.message;
+                console.error(err);
+            }
+        }
+
+        async function renderDiagram() {
+            const code = editor.getValue();
+            statusEl.innerText = "Rendering...";
+            renderBtn.disabled = true;
+
+            try {
+                // Modified code to ensure it returns the SVG string
+                const wrapper = `
+import schemdraw
+import io
+
+# Setup drawing
+d = schemdraw.Drawing()
+
+# Execute user code
+# We inject the drawing instance 'd' into the local scope
+exec_locals = {'d': d, 'schemdraw': schemdraw, 'elm': schemdraw.elements}
+exec("""${code.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}""", {}, exec_locals)
+
+# Capture SVG
+svg_output = d.get_imagedata('svg').decode('utf-8')
+svg_output
+`;
+                const svg = await pyodide.runPythonAsync(wrapper);
+                previewEl.innerHTML = svg;
+                statusEl.innerText = "Rendered successfully.";
+                pdfBtn.disabled = false;
+            } catch (err) {
+                statusEl.innerText = "Error: " + err.message;
+                previewEl.innerHTML = `<pre style="color: red;">${err.message}</pre>`;
+            } finally {
+                renderBtn.disabled = false;
+            }
+        }
+
+        renderBtn.addEventListener('click', renderDiagram);
+        pdfBtn.addEventListener('click', () => {
+            window.print();
+        });
+
+        initPyodide();
+    </script>
+</body>
+</html>
