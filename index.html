@@ -120,14 +120,12 @@
     <main>
         <div class="editor-container">
             <div class="container-header">Python Code</div>
-            <textarea id="code">import schemdraw
-import schemdraw.elements as elm
-
-with schemdraw.Drawing() as d:
-    d += elm.Resistor().label('R1')
-    d += elm.Capacitor().label('C1')
-    d += elm.Diode().label('D1')
-    # The SVG string will be captured below
+            <textarea id="code"># 'd' will be the drawing instance
+d = schemdraw.Drawing()
+d += elm.Resistor().label('100Ω')
+d += elm.Capacitor().down().label('10μF')
+d += elm.Line().left()
+d += elm.SourceV().up().label('12V')
 </textarea>
         </div>
         <div class="preview-container">
@@ -175,22 +173,37 @@ with schemdraw.Drawing() as d:
             renderBtn.disabled = true;
 
             try {
-                // Modified code to ensure it returns the SVG string
+                // Pass the code as a string to avoid escaping issues
+                pyodide.globals.set("user_code", code);
+                
                 const wrapper = `
 import schemdraw
+import schemdraw.elements as elm
 import io
 
-# Setup drawing
-d = schemdraw.Drawing()
+# Create a clean namespace for execution
+namespace = {"schemdraw": schemdraw, "elm": elm}
 
-# Execute user code
-# We inject the drawing instance 'd' into the local scope
-exec_locals = {'d': d, 'schemdraw': schemdraw, 'elm': schemdraw.elements}
-exec("""${code.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}""", {}, exec_locals)
+# Execute the user code
+exec(user_code, namespace)
 
-# Capture SVG
-svg_output = d.get_imagedata('svg').decode('utf-8')
-svg_output
+# Find the drawing object. 
+# It's either the one the user explicitly created (usually 'd')
+# or we look for any schemdraw.Drawing instance in the namespace.
+drawing = namespace.get('d')
+if not isinstance(drawing, schemdraw.Drawing):
+    for val in namespace.values():
+        if isinstance(val, schemdraw.Drawing):
+            drawing = val
+            break
+
+if drawing:
+    # Ensure the drawing is "drawn" if it was used in a context manager
+    # get_imagedata('svg') handles this usually.
+    svg_output = drawing.get_imagedata('svg').decode('utf-8')
+    svg_output
+else:
+    raise Exception("No schemdraw.Drawing object found. Please make sure to create one (e.g., 'd = schemdraw.Drawing()') or use 'with schemdraw.Drawing() as d:'.")
 `;
                 const svg = await pyodide.runPythonAsync(wrapper);
                 previewEl.innerHTML = svg;
@@ -198,7 +211,7 @@ svg_output
                 pdfBtn.disabled = false;
             } catch (err) {
                 statusEl.innerText = "Error: " + err.message;
-                previewEl.innerHTML = `<pre style="color: red;">${err.message}</pre>`;
+                previewEl.innerHTML = `<pre style="color: red; white-space: pre-wrap;">${err.message}</pre>`;
             } finally {
                 renderBtn.disabled = false;
             }
