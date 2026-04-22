@@ -180,12 +180,19 @@ d += elm.SourceV().up().label('12V')
         async function initPyodide() {
             try {
                 pyodide = await loadPyodide();
-                statusEl.innerText = "Installing packages (schemdraw, matplotlib)...";
+                statusEl.innerText = "Installing latest packages (this may take a moment)...";
                 await pyodide.loadPackage("micropip");
                 const micropip = pyodide.pyimport("micropip");
-                await micropip.install(["schemdraw", "matplotlib"]);
                 
-                statusEl.innerText = "Ready!";
+                // Force latest versions
+                await micropip.install(["schemdraw>=0.19", "matplotlib"]);
+                
+                const versionInfo = await pyodide.runPythonAsync(`
+import schemdraw
+import matplotlib
+f"schemdraw {schemdraw.__version__}, matplotlib {matplotlib.__version__}"
+`);
+                statusEl.innerText = "Ready! (" + versionInfo + ")";
                 renderBtn.disabled = false;
             } catch (err) {
                 statusEl.innerText = "Error loading environment: " + err.message;
