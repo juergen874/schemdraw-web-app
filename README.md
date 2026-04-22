@@ -27,8 +27,8 @@ d += elm.SourceV().up().label('12V')
 
 ## Hosting
 
-This project is designed to be hosted on **GitHub Pages**. Simply enable GitHub Pages in the repository settings and point it to the `main` branch.
-
+This project is designed to be hosted on **GitHub Pages**.
+https://juergen874.github.io/schemdraw-web-app/
 ## License
 
 MIT
