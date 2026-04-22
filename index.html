@@ -180,15 +180,15 @@ d += elm.SourceV().up().label('12V')
         async function initPyodide() {
             try {
                 pyodide = await loadPyodide();
-                statusEl.innerText = "Installing schemdraw...";
+                statusEl.innerText = "Installing packages (schemdraw, matplotlib)...";
                 await pyodide.loadPackage("micropip");
                 const micropip = pyodide.pyimport("micropip");
-                await micropip.install("schemdraw");
+                await micropip.install(["schemdraw", "matplotlib"]);
                 
                 statusEl.innerText = "Ready!";
                 renderBtn.disabled = false;
             } catch (err) {
-                statusEl.innerText = "Error loading Pyodide: " + err.message;
+                statusEl.innerText = "Error loading environment: " + err.message;
                 console.error(err);
             }
         }
@@ -205,10 +205,12 @@ d += elm.SourceV().up().label('12V')
                 const wrapper = `
 import schemdraw
 import schemdraw.elements as elm
-import io
+from schemdraw import logic
+import matplotlib
+matplotlib.use('Agg') # Headless backend for browser
 
 # Create a clean namespace for execution
-namespace = {"schemdraw": schemdraw, "elm": elm}
+namespace = {"schemdraw": schemdraw, "elm": elm, "logic": logic}
 
 # Execute the user code
 exec(user_code, namespace)
